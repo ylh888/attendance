@@ -140,7 +140,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Event Guest List Copier</h1>
+        <h1>Atendance Taker</h1>
 
         <!-- Event Title -->
         <div class="form-group">
@@ -159,9 +159,9 @@
 
         <!-- Guest Search -->
         <div class="form-group">
-            <label>Add Guests (Search or Enter New)</label>
+            <label>Add participants (Search or Enter New)</label>
             <div class="search-container">
-                <input type="text" id="guestSearch" placeholder="Type to search guests (partial match)">
+                <input type="text" id="guestSearch" placeholder="Type to search participants (partial match)">
                 <div id="searchResults" class="search-results"></div>
             </div>
             <div class="name-row" style="margin-top: 0.5rem;">
@@ -172,7 +172,7 @@
 
         <!-- Final List with Remove Buttons -->
         <div class="form-group">
-            <label>Final Guest List (Click × to remove)</label>
+            <label>Final Attendance List (Click × to remove)</label>
             <div id="finalList" class="guest-list">Your list will appear here...</div>
         </div>
 
@@ -326,7 +326,7 @@
             let html = `<div style="margin-bottom:8px;">Event: ${eventTitle}<br>Date: ${date}</div>`;
 
             if (fullList.length === 0) {
-                html += "No guests added yet.";
+                html += "No participants added yet.";
                 finalListEl.innerHTML = html;
                 return;
             }
