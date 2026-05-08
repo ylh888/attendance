@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Taker</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 0;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .name-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-results {
+            position: absolute;
+            background: white;
+            width: 100%;
+            max-height: 180px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 0 0 6px 6px;
+            z-index: 100;
+            display: none;
+        }
+
+        .search-result-item {
+            padding: 0.6rem;
+            cursor: pointer;
+        }
+
+        .search-result-item:hover {
+            background: #e3f2fd;
+        }
+
+        #addCustomBtn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #copyBtn {
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
+
+        #addCustomBtn:hover, #copyBtn:hover {
+            opacity: 0.9;
+        }
+
+        .guest-list {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            min-height: 120px;
+            line-height: 1.6;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .remove-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            width: auto;
+        }
+
+        .success-message {
+            color: #27ae60;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 0.5rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Event Guest List Copier</h1>
+
+        <!-- Event Title -->
+        <div class="form-group">
+            <label>Event Title</label>
+            <select id="eventSelect">
+                <option value="default">Type custom title or select from list</option>
+            </select>
+            <input type="text" id="eventCustom" placeholder="Enter your event title" style="margin-top: 0.5rem; display: block;">
+        </div>
+
+        <!-- Event Date -->
+        <div class="form-group">
+            <label>Event Date</label>
+            <input type="date" id="eventDate">
+        </div>
+
+        <!-- Guest Search -->
+        <div class="form-group">
+            <label>Add Guests (Search or Enter New)</label>
+            <div class="search-container">
+                <input type="text" id="guestSearch" placeholder="Type to search guests (partial match)">
+                <div id="searchResults" class="search-results"></div>
+            </div>
+            <div class="name-row" style="margin-top: 0.5rem;">
+                <input type="text" id="newCustomName" placeholder="Or enter a NEW name">
+                <button id="addCustomBtn">Add New</button>
+            </div>
+        </div>
+
+        <!-- Final List with Remove Buttons -->
+        <div class="form-group">
+            <label>Final Guest List (Click × to remove)</label>
+            <div id="finalList" class="guest-list">Your list will appear here...</div>
+        </div>
+
+        <button id="copyBtn">COPY TO CLIPBOARD</button>
+        <div class="success-message" id="successMsg">✅ Copied!</div>
+    </div>
+
+    <script>
+        // ======================================================
+        // EDIT YOUR LISTS HERE
+        // ======================================================
+        const eventList = [
+            { "title": "Mon Life Drawing" },
+            { "title": "Tue Life Drawing" },
+            { "title": "Tue Skillshare" },
+            { "title": "Wed Skillshare" },
+            { "title": "Wed Painters" },
+            { "title": "Fri Painters" },
+            { "title": "Currents in Events" },
+            { "title": "In Conversation" },
+            { "title": "" },
+            { "title": "Fri Salon" },
+            { "title": "Ad Lib" }
+        ];
+
+        const guestWhitelist = [
+            "Alice Smith",
+            "Bob J.",
+            "Charlie MacD.",
+            "Charlie MacS.",
+            "Ethan W.",
+            "Fiona B.",
+            "George C.",
+            "Hannah L.",
+            "Ian Wa",
+            "Julia H.",
+            "Kevin K.",
+            "Lily S."
+        ];
+
+        // ======================================================
+        // APP LOGIC
+        // ======================================================
+        let newNames = [];
+        let selectedWhitelistNames = [];
+
+        const eventSelect = document.getElementById('eventSelect');
+        const eventCustom = document.getElementById('eventCustom');
+        const eventDate = document.getElementById('eventDate');
+        const guestSearch = document.getElementById('guestSearch');
+        const searchResults = document.getElementById('searchResults');
+        const newCustomName = document.getElementById('newCustomName');
+        const addCustomBtn = document.getElementById('addCustomBtn');
+        const finalListEl = document.getElementById('finalList');
+        const copyBtn = document.getElementById('copyBtn');
+        const successMsg = document.getElementById('successMsg');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            eventDate.value = new Date().toISOString().split('T')[0];
+
+            eventList.forEach(event => {
+                const option = document.createElement('option');
+                option.value = event.title;
+                option.textContent = event.title;
+                eventSelect.appendChild(option);
+            });
+
+            updateFinalList();
+        });
+
+        // Dropdown change logic
+        eventSelect.addEventListener('change', () => {
+            // Always keep custom input visible
+            if(eventSelect.value === "default"){
+                eventCustom.value = "";
+            } else {
+                eventCustom.value = eventSelect.value;
+            }
+            updateFinalList();
+        });
+
+        // Partial match search
+        guestSearch.addEventListener('input', () => {
+            const query = guestSearch.value.toLowerCase().trim();
+            searchResults.innerHTML = '';
+
+            if (query.length < 1) {
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            const matches = guestWhitelist.filter(name =>
+                name.toLowerCase().includes(query)
+            );
+
+            if (matches.length === 0) {
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            matches.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.textContent = name;
+                div.addEventListener('click', () => selectGuest(name));
+                searchResults.appendChild(div);
+            });
+
+            searchResults.style.display = 'block';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!guestSearch.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        function selectGuest(name) {
+            if (!selectedWhitelistNames.includes(name) && !newNames.includes(name)) {
+                selectedWhitelistNames.push(name);
+                guestSearch.value = '';
+                searchResults.style.display = 'none';
+                updateFinalList();
+            }
+        }
+
+        addCustomBtn.addEventListener('click', () => {
+            const name = newCustomName.value.trim();
+            if (name && !newNames.includes(name) && !selectedWhitelistNames.includes(name)) {
+                newNames.push(name);
+                newCustomName.value = '';
+                updateFinalList();
+            }
+        });
+
+        // Remove name
+        function removeName(name) {
+            newNames = newNames.filter(n => n !== name);
+            selectedWhitelistNames = selectedWhitelistNames.filter(n => n !== name);
+            updateFinalList();
+        }
+
+        // Render list with remove buttons + plain text for copy
+        function updateFinalList() {
+            // Get event title: use custom input always
+            const eventTitle = eventCustom.value.trim() || "Untitled Event";
+            const date = eventDate.value || 'No Date';
+            const fullList = [...newNames, ...selectedWhitelistNames];
+
+            // Build visual HTML list with remove buttons
+            let html = `<div style="margin-bottom:8px;">Event: ${eventTitle}<br>Date: ${date}</div>`;
+
+            if (fullList.length === 0) {
+                html += "No guests added yet.";
+                finalListEl.innerHTML = html;
+                return;
+            }
+
+            fullList.forEach((name, i) => {
+                html += `
+                    <div class="list-item">
+                        <span>${i+1}. ${name}</span>
+                        <button class="remove-btn" onclick="removeName('${name}')">×</button>
+                    </div>
+                `;
+            });
+
+            finalListEl.innerHTML = html;
+        }
+
+        // Copy plain text version
+        copyBtn.addEventListener('click', async () => {
+            const eventTitle = eventCustom.value.trim() || "Untitled Event";
+            const date = eventDate.value || 'No Date';
+            const fullList = [...newNames, ...selectedWhitelistNames];
+
+            let output = `Event: ${eventTitle}\nDate: ${date}\n\nGuest List:\n`;
+            fullList.forEach((name, i) => output += `${i+1}. ${name}\n`);
+            if (fullList.length === 0) output += "No guests added yet.";
+
+            try {
+                await navigator.clipboard.writeText(output);
+                successMsg.style.display = 'block';
+                setTimeout(() => successMsg.style.display = 'none', 2000);
+            } catch (e) {
+                alert('Copy failed. Try again.');
+            }
+        });
+
+        eventCustom.addEventListener('input', updateFinalList);
+        eventDate.addEventListener('change', updateFinalList);
+    </script>
+</body>
+</html>
