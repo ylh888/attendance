@@ -189,7 +189,7 @@
             </div>
         </div>
 
-        <!-- ADD NEW BUTTON MOVED HERE (JUST BEFORE FINAL LIST) -->
+        <!-- Add New Button -->
         <button id="addCustomBtn">Add New</button>
 
         <!-- Final Attendance List -->
@@ -236,7 +236,7 @@
             "Lily S."
         ];
 
-        let attendees = []; // {name, email, guestOf, isNew: boolean}
+        let attendees = [];
 
         const eventSelect = document.getElementById('eventSelect');
         const eventCustom = document.getElementById('eventCustom');
@@ -268,6 +268,16 @@
             updateFinalList();
         });
 
+        // Instant event title sync
+        eventSelect.addEventListener('change', () => {
+            if(eventSelect.value === "default"){
+                eventCustom.value = "";
+            } else {
+                eventCustom.value = eventSelect.value;
+            }
+            updateFinalList();
+        });
+
         function populateAllDropdowns() {
             mainParticipantSelect.innerHTML = '<option value="">-- Select a member --</option>';
             guestWhitelist.forEach(name => {
@@ -286,7 +296,6 @@
             });
         }
 
-        // When typing new name, clear member dropdown
         newCustomName.addEventListener('input', () => {
             mainParticipantSelect.value = "";
         });
@@ -314,7 +323,6 @@
             const guestOf = guestOfSelect.value;
             emailError.style.display = 'none';
 
-            // Block if no host selected
             if (!guestOf) {
                 alert('Please select a host first in "As guest of"');
                 return;
@@ -354,7 +362,6 @@
                 return output;
             }
 
-            // New entries first, then members
             const newEntries = attendees.filter(x => x.isNew);
             const memberEntries = attendees.filter(x => !x.isNew);
             const ordered = [...newEntries, ...memberEntries];
@@ -384,7 +391,6 @@
                 return;
             }
 
-            // New first, then members
             const newEntries = attendees.filter(x => x.isNew);
             const memberEntries = attendees.filter(x => !x.isNew);
             const ordered = [...newEntries, ...memberEntries];
