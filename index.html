@@ -142,18 +142,87 @@
             margin-top: 0.3rem;
             display: none;
         }
+
+        /* Searchable Dropdown Styles */
+        .searchable-select {
+            position: relative;
+            width: 100%;
+        }
+
+        .select-display {
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .select-display::after {
+            content: '▼';
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 0 0 6px 6px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.6rem;
+            border: none;
+            border-bottom: 1px solid #eee;
+            border-radius: 6px 6px 0 0;
+            font-size: 1rem;
+        }
+
+        .select-option {
+            padding: 0.7rem 0.8rem;
+            cursor: pointer;
+        }
+
+        .select-option:hover {
+            background: #f0f0f0;
+        }
+
+        .select-option.selected {
+            background: #e8f4fd;
+            font-weight: bold;
+        }
+
+        .show {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Attendance Taker</h1>
 
-        <!-- Event Title -->
+        <!-- Event Title (Searchable) -->
         <div class="form-group">
             <label>Event Title</label>
-            <select id="eventSelect">
-                <option value="default">Type custom title or select from list</option>
-            </select>
+            <div class="searchable-select" id="eventSearchable">
+                <div class="select-display">Type custom title or select from list</div>
+                <div class="select-dropdown">
+                    <input type="text" class="search-input" placeholder="Search events...">
+                    <div class="options-container"></div>
+                </div>
+            </div>
             <input type="text" id="eventCustom" placeholder="Enter your event title" style="margin-top: 0.5rem; display: block;">
         </div>
 
@@ -163,12 +232,16 @@
             <input type="date" id="eventDate">
         </div>
 
-        <!-- Select a member -->
+        <!-- Select a member (Searchable) -->
         <div class="form-group">
             <label>Select a member</label>
-            <select id="mainParticipantSelect">
-                <option value="">-- Select a member --</option>
-            </select>
+            <div class="searchable-select" id="memberSearchable">
+                <div class="select-display">-- Select a member --</div>
+                <div class="select-dropdown">
+                    <input type="text" class="search-input" placeholder="Search members...">
+                    <div class="options-container"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Or add new participant -->
@@ -180,12 +253,16 @@
             </div>
             <div class="error-message" id="emailError">❌ Please enter a valid email address</div>
 
-            <!-- As guest of -->
+            <!-- As guest of (Searchable) -->
             <div class="form-group" style="margin-top:1rem; margin-bottom:0;">
                 <label>As guest of</label>
-                <select id="guestOfSelect">
-                    <option value="">-- Select host --</option>
-                </select>
+                <div class="searchable-select" id="guestOfSearchable">
+                    <div class="select-display">-- Select host --</div>
+                    <div class="select-dropdown">
+                        <input type="text" class="search-input" placeholder="Search host...">
+                        <div class="options-container"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -237,12 +314,12 @@
         ];
 
         let attendees = [];
+        let selectedEvent = "";
+        let selectedGuestOf = "";
+        let selectedMember = "";
 
-        const eventSelect = document.getElementById('eventSelect');
         const eventCustom = document.getElementById('eventCustom');
         const eventDate = document.getElementById('eventDate');
-        const mainParticipantSelect = document.getElementById('mainParticipantSelect');
-        const guestOfSelect = document.getElementById('guestOfSelect');
         const newCustomName = document.getElementById('newCustomName');
         const newCustomEmail = document.getElementById('newCustomEmail');
         const addCustomBtn = document.getElementById('addCustomBtn');
@@ -256,54 +333,74 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             eventDate.value = new Date().toISOString().split('T')[0];
-
-            eventList.forEach(event => {
-                const option = document.createElement('option');
-                option.value = event.title;
-                option.textContent = event.title;
-                eventSelect.appendChild(option);
-            });
-
-            populateAllDropdowns();
+            initSearchableSelect('eventSearchable', eventList.map(e => e.title), onEventSelected);
+            initSearchableSelect('memberSearchable', guestWhitelist, onMemberSelected);
+            initSearchableSelect('guestOfSearchable', guestWhitelist, onGuestOfSelected);
             updateFinalList();
         });
 
-        // Instant event title sync
-        eventSelect.addEventListener('change', () => {
-            if(eventSelect.value === "default"){
-                eventCustom.value = "";
-            } else {
-                eventCustom.value = eventSelect.value;
+        // Initialize searchable dropdown component
+        function initSearchableSelect(containerId, options, onSelect) {
+            const container = document.getElementById(containerId);
+            const display = container.querySelector('.select-display');
+            const dropdown = container.querySelector('.select-dropdown');
+            const searchInput = container.querySelector('.search-input');
+            const optionsContainer = container.querySelector('.options-container');
+
+            // Populate options
+            function renderOptions(filter = '') {
+                optionsContainer.innerHTML = '';
+                const filtered = options.filter(opt => 
+                    opt.toLowerCase().includes(filter.toLowerCase())
+                );
+                filtered.forEach(opt => {
+                    if(!opt) return;
+                    const div = document.createElement('div');
+                    div.className = 'select-option';
+                    div.textContent = opt;
+                    div.addEventListener('click', () => {
+                        display.textContent = opt;
+                        dropdown.classList.remove('show');
+                        onSelect(opt);
+                    });
+                    optionsContainer.appendChild(div);
+                });
             }
-            updateFinalList();
-        });
 
-        function populateAllDropdowns() {
-            mainParticipantSelect.innerHTML = '<option value="">-- Select a member --</option>';
-            guestWhitelist.forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                mainParticipantSelect.appendChild(opt);
+            renderOptions();
+
+            // Toggle dropdown
+            display.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('show');
+                if(dropdown.classList.contains('show')) {
+                    searchInput.focus(); // Mobile keyboard pops up here
+                    searchInput.value = '';
+                    renderOptions();
+                }
             });
 
-            guestOfSelect.innerHTML = '<option value="">-- Select host --</option>';
-            guestWhitelist.forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                guestOfSelect.appendChild(opt);
+            // Search filter
+            searchInput.addEventListener('input', () => {
+                renderOptions(searchInput.value);
+            });
+
+            // Close when clicking outside
+            document.addEventListener('click', (e) => {
+                if(!container.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
             });
         }
 
-        newCustomName.addEventListener('input', () => {
-            mainParticipantSelect.value = "";
-        });
+        function onEventSelected(title) {
+            selectedEvent = title;
+            eventCustom.value = title;
+            updateFinalList();
+        }
 
-        mainParticipantSelect.addEventListener('change', () => {
-            const name = mainParticipantSelect.value;
-            if(!name) return;
-
+        function onMemberSelected(name) {
+            selectedMember = name;
             const exists = attendees.some(a => a.name === name);
             if(!exists) {
                 attendees.push({
@@ -312,18 +409,29 @@
                     guestOf: "",
                     isNew: false
                 });
-                mainParticipantSelect.value = "";
+                // Reset member display
+                document.getElementById('memberSearchable').querySelector('.select-display').textContent = '-- Select a member --';
+                selectedMember = "";
                 updateFinalList();
             }
+        }
+
+        function onGuestOfSelected(host) {
+            selectedGuestOf = host;
+        }
+
+        newCustomName.addEventListener('input', () => {
+            // Reset member selection when typing custom name
+            document.getElementById('memberSearchable').querySelector('.select-display').textContent = '-- Select a member --';
+            selectedMember = "";
         });
 
         addCustomBtn.addEventListener('click', () => {
             const name = newCustomName.value.trim();
             const email = newCustomEmail.value.trim();
-            const guestOf = guestOfSelect.value;
             emailError.style.display = 'none';
 
-            if (!guestOf) {
+            if (!selectedGuestOf) {
                 alert('Please select a host first in "As guest of"');
                 return;
             }
@@ -338,11 +446,13 @@
                 attendees.push({
                     name,
                     email,
-                    guestOf,
+                    guestOf: selectedGuestOf,
                     isNew: true
                 });
                 newCustomName.value = '';
                 newCustomEmail.value = '';
+                selectedGuestOf = '';
+                document.getElementById('guestOfSearchable').querySelector('.select-display').textContent = '-- Select host --';
                 updateFinalList();
             }
         });
