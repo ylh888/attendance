@@ -53,31 +53,12 @@
             display: flex;
             gap: 0.5rem;
             margin-bottom: 0.8rem;
+            flex-wrap: wrap;
         }
 
-        .search-container {
-            position: relative;
-        }
-
-        .search-results {
-            position: absolute;
-            background: white;
-            width: 100%;
-            max-height: 180px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 0 0 6px 6px;
-            z-index: 100;
-            display: none;
-        }
-
-        .search-result-item {
-            padding: 0.6rem;
-            cursor: pointer;
-        }
-
-        .search-result-item:hover {
-            background: #e3f2fd;
+        .name-row input {
+            flex: 1;
+            min-width: 140px;
         }
 
         #addCustomBtn {
@@ -86,6 +67,18 @@
             border: none;
             cursor: pointer;
             white-space: nowrap;
+            margin-bottom: 1rem;
+        }
+
+        #mailBtn {
+            background: #9b59b6;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 1rem 0 0.5rem;
         }
 
         #copyBtn {
@@ -96,10 +89,16 @@
             padding: 1rem;
             font-size: 1.1rem;
             font-weight: bold;
-            margin: 1rem 0;
+            margin: 0.5rem 0 1rem;
         }
 
-        #addCustomBtn:hover, #copyBtn:hover {
+        .or-text {
+            text-align: center;
+            color: #777;
+            margin: 0.3rem 0;
+        }
+
+        #addCustomBtn:hover, #copyBtn:hover, #mailBtn:hover {
             opacity: 0.9;
         }
 
@@ -136,6 +135,13 @@
             margin-top: 0.5rem;
             display: none;
         }
+
+        .error-message {
+            color: #e74c3c;
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -157,33 +163,50 @@
             <input type="date" id="eventDate">
         </div>
 
-        <!-- Guest Search -->
+        <!-- Select a member -->
         <div class="form-group">
-            <label>Add participants (Search or Enter New)</label>
-            <div class="search-container">
-                <input type="text" id="guestSearch" placeholder="Type to search participants (partial match)">
-                <div id="searchResults" class="search-results"></div>
+            <label>Select a member</label>
+            <select id="mainParticipantSelect">
+                <option value="">-- Select a member --</option>
+            </select>
+        </div>
+
+        <!-- Or add new participant -->
+        <div class="form-group">
+            <label>Or add new participant</label>
+            <div class="name-row">
+                <input type="text" id="newCustomName" placeholder="Enter new name">
+                <input type="email" id="newCustomEmail" placeholder="Email (required)">
             </div>
-            <div class="name-row" style="margin-top: 0.5rem;">
-                <input type="text" id="newCustomName" placeholder="Or enter a NEW name">
-                <button id="addCustomBtn">Add New</button>
+            <div class="error-message" id="emailError">❌ Please enter a valid email address</div>
+
+            <!-- As guest of -->
+            <div class="form-group" style="margin-top:1rem; margin-bottom:0;">
+                <label>As guest of</label>
+                <select id="guestOfSelect">
+                    <option value="">-- Select host --</option>
+                </select>
             </div>
         </div>
 
-        <!-- Final List with Remove Buttons -->
+        <!-- ADD NEW BUTTON MOVED HERE (JUST BEFORE FINAL LIST) -->
+        <button id="addCustomBtn">Add New</button>
+
+        <!-- Final Attendance List -->
         <div class="form-group">
             <label>Final Attendance List (Click × to remove)</label>
             <div id="finalList" class="guest-list">Your list will appear here...</div>
         </div>
 
-        <button id="copyBtn">COPY TO CLIPBOARD</button>
+        <!-- Send Mail + Or + Copy -->
+        <button id="mailBtn">Send by Mail</button>
+        <div class="or-text">Or</div>
+        <button id="copyBtn">Copy to Clipboard</button>
         <div class="success-message" id="successMsg">✅ Copied!</div>
     </div>
 
     <script>
-        // ======================================================
-        // EDIT YOUR LISTS HERE
-        // ======================================================
+        // Edit lists here
         const eventList = [
             { "title": "Mon Life Drawing" },
             { "title": "Tue Life Drawing" },
@@ -213,22 +236,23 @@
             "Lily S."
         ];
 
-        // ======================================================
-        // APP LOGIC
-        // ======================================================
-        let newNames = [];
-        let selectedWhitelistNames = [];
+        let attendees = []; // {name, email, guestOf, isNew: boolean}
 
         const eventSelect = document.getElementById('eventSelect');
         const eventCustom = document.getElementById('eventCustom');
         const eventDate = document.getElementById('eventDate');
-        const guestSearch = document.getElementById('guestSearch');
-        const searchResults = document.getElementById('searchResults');
+        const mainParticipantSelect = document.getElementById('mainParticipantSelect');
+        const guestOfSelect = document.getElementById('guestOfSelect');
         const newCustomName = document.getElementById('newCustomName');
+        const newCustomEmail = document.getElementById('newCustomEmail');
         const addCustomBtn = document.getElementById('addCustomBtn');
         const finalListEl = document.getElementById('finalList');
         const copyBtn = document.getElementById('copyBtn');
+        const mailBtn = document.getElementById('mailBtn');
         const successMsg = document.getElementById('successMsg');
+        const emailError = document.getElementById('emailError');
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         window.addEventListener('DOMContentLoaded', () => {
             eventDate.value = new Date().toISOString().split('T')[0];
@@ -240,102 +264,141 @@
                 eventSelect.appendChild(option);
             });
 
+            populateAllDropdowns();
             updateFinalList();
         });
 
-        // Dropdown change logic
-        eventSelect.addEventListener('change', () => {
-            // Always keep custom input visible
-            if(eventSelect.value === "default"){
-                eventCustom.value = "";
-            } else {
-                eventCustom.value = eventSelect.value;
-            }
-            updateFinalList();
-        });
-
-        // Partial match search
-        guestSearch.addEventListener('input', () => {
-            const query = guestSearch.value.toLowerCase().trim();
-            searchResults.innerHTML = '';
-
-            if (query.length < 1) {
-                searchResults.style.display = 'none';
-                return;
-            }
-
-            const matches = guestWhitelist.filter(name =>
-                name.toLowerCase().includes(query)
-            );
-
-            if (matches.length === 0) {
-                searchResults.style.display = 'none';
-                return;
-            }
-
-            matches.forEach(name => {
-                const div = document.createElement('div');
-                div.className = 'search-result-item';
-                div.textContent = name;
-                div.addEventListener('click', () => selectGuest(name));
-                searchResults.appendChild(div);
+        function populateAllDropdowns() {
+            mainParticipantSelect.innerHTML = '<option value="">-- Select a member --</option>';
+            guestWhitelist.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                mainParticipantSelect.appendChild(opt);
             });
 
-            searchResults.style.display = 'block';
+            guestOfSelect.innerHTML = '<option value="">-- Select host --</option>';
+            guestWhitelist.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                guestOfSelect.appendChild(opt);
+            });
+        }
+
+        // When typing new name, clear member dropdown
+        newCustomName.addEventListener('input', () => {
+            mainParticipantSelect.value = "";
         });
 
-        document.addEventListener('click', (e) => {
-            if (!guestSearch.contains(e.target) && !searchResults.contains(e.target)) {
-                searchResults.style.display = 'none';
-            }
-        });
+        mainParticipantSelect.addEventListener('change', () => {
+            const name = mainParticipantSelect.value;
+            if(!name) return;
 
-        function selectGuest(name) {
-            if (!selectedWhitelistNames.includes(name) && !newNames.includes(name)) {
-                selectedWhitelistNames.push(name);
-                guestSearch.value = '';
-                searchResults.style.display = 'none';
+            const exists = attendees.some(a => a.name === name);
+            if(!exists) {
+                attendees.push({
+                    name,
+                    email: "",
+                    guestOf: "",
+                    isNew: false
+                });
+                mainParticipantSelect.value = "";
                 updateFinalList();
             }
-        }
+        });
 
         addCustomBtn.addEventListener('click', () => {
             const name = newCustomName.value.trim();
-            if (name && !newNames.includes(name) && !selectedWhitelistNames.includes(name)) {
-                newNames.push(name);
+            const email = newCustomEmail.value.trim();
+            const guestOf = guestOfSelect.value;
+            emailError.style.display = 'none';
+
+            // Block if no host selected
+            if (!guestOf) {
+                alert('Please select a host first in "As guest of"');
+                return;
+            }
+            if (!name) return;
+            if (!emailRegex.test(email)) {
+                emailError.style.display = 'block';
+                return;
+            }
+
+            const exists = attendees.some(a => a.name === name);
+            if (!exists) {
+                attendees.push({
+                    name,
+                    email,
+                    guestOf,
+                    isNew: true
+                });
                 newCustomName.value = '';
+                newCustomEmail.value = '';
                 updateFinalList();
             }
         });
 
-        // Remove name
-        function removeName(name) {
-            newNames = newNames.filter(n => n !== name);
-            selectedWhitelistNames = selectedWhitelistNames.filter(n => n !== name);
+        function removeAttendee(name) {
+            attendees = attendees.filter(a => a.name !== name);
             updateFinalList();
         }
 
-        // Render list with remove buttons + plain text for copy
-        function updateFinalList() {
-            // Get event title: use custom input always
+        function buildPlainTextOutput() {
             const eventTitle = eventCustom.value.trim() || "Untitled Event";
             const date = eventDate.value || 'No Date';
-            const fullList = [...newNames, ...selectedWhitelistNames];
+            let output = `Event: ${eventTitle}\nDate: ${date}\n\nAttendees:\n`;
 
-            // Build visual HTML list with remove buttons
+            if (attendees.length === 0) {
+                output += "No attendees added yet.";
+                return output;
+            }
+
+            // New entries first, then members
+            const newEntries = attendees.filter(x => x.isNew);
+            const memberEntries = attendees.filter(x => !x.isNew);
+            const ordered = [...newEntries, ...memberEntries];
+
+            ordered.forEach((item, i) => {
+                let line = `${i+1}. ${item.name}`;
+                if(item.isNew) {
+                    let parts = [];
+                    if(item.email) parts.push(item.email);
+                    if(item.guestOf) parts.push(`guest of ${item.guestOf}`);
+                    if(parts.length > 0) line += ` (${parts.join(', ')})`;
+                }
+                output += line + '\n';
+            });
+            return output;
+        }
+
+        function updateFinalList() {
+            const eventTitle = eventCustom.value.trim() || "Untitled Event";
+            const date = eventDate.value || 'No Date';
+
             let html = `<div style="margin-bottom:8px;">Event: ${eventTitle}<br>Date: ${date}</div>`;
 
-            if (fullList.length === 0) {
+            if (attendees.length === 0) {
                 html += "No participants added yet.";
                 finalListEl.innerHTML = html;
                 return;
             }
 
-            fullList.forEach((name, i) => {
+            // New first, then members
+            const newEntries = attendees.filter(x => x.isNew);
+            const memberEntries = attendees.filter(x => !x.isNew);
+            const ordered = [...newEntries, ...memberEntries];
+
+            ordered.forEach((item, i) => {
+                let line = `${i+1}. ${item.name}`;
+                if(item.isNew){
+                    if(item.email) line += ` | ${item.email}`;
+                    if(item.guestOf) line += ` (guest of ${item.guestOf})`;
+                }
                 html += `
                     <div class="list-item">
-                        <span>${i+1}. ${name}</span>
-                        <button class="remove-btn" onclick="removeName('${name}')">×</button>
+                        <span>${line}</span>
+                        <button class="remove-btn" onclick="removeAttendee('${item.name}')">×</button>
                     </div>
                 `;
             });
@@ -343,16 +406,8 @@
             finalListEl.innerHTML = html;
         }
 
-        // Copy plain text version
         copyBtn.addEventListener('click', async () => {
-            const eventTitle = eventCustom.value.trim() || "Untitled Event";
-            const date = eventDate.value || 'No Date';
-            const fullList = [...newNames, ...selectedWhitelistNames];
-
-            let output = `Event: ${eventTitle}\nDate: ${date}\n\nGuest List:\n`;
-            fullList.forEach((name, i) => output += `${i+1}. ${name}\n`);
-            if (fullList.length === 0) output += "No guests added yet.";
-
+            const output = buildPlainTextOutput();
             try {
                 await navigator.clipboard.writeText(output);
                 successMsg.style.display = 'block';
@@ -360,6 +415,13 @@
             } catch (e) {
                 alert('Copy failed. Try again.');
             }
+        });
+
+        mailBtn.addEventListener('click', () => {
+            const output = buildPlainTextOutput();
+            const subject = `Attendance - ${eventCustom.value.trim() || "Untitled Event"}`;
+            const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(output)}`;
+            window.location.href = mailto;
         });
 
         eventCustom.addEventListener('input', updateFinalList);
